@@ -1,13 +1,13 @@
 # 开发任务清单
 
 ## 阶段 1：项目骨架搭建
-- [ ] 初始化 Python 项目结构和依赖管理（pyproject.toml / requirements.txt）
-- [ ] 安装核心依赖：yt-dlp, streamlit, sqlite-utils
-- [ ] 创建基础 Streamlit 页面骨架（侧边栏配置 + 主区域日志）
+- [x] 初始化 Python 项目结构和依赖管理（pyproject.toml / requirements.txt）
+- [x] 安装核心依赖：yt-dlp, streamlit
+- [x] 创建基础 Streamlit 页面骨架（侧边栏配置 + 主区域日志）
 
 ### 验证
-- [ ] `streamlit run src/app.py` 能启动，页面可访问
-- [ ] 侧边栏和主区域布局正常显示
+- [x] `streamlit run src/app.py` 能启动，页面可访问
+- [x] 侧边栏和主区域布局正常显示
 
 ---
 

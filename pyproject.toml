@@ -1,0 +1,12 @@
+[project]
+name = "batch-video-crawler"
+version = "0.1.0"
+description = "大模型多模态评测集批量视频下载工具"
+requires-python = ">=3.11"
+dependencies = [
+    "yt-dlp>=2024.0.0",
+    "streamlit>=1.30.0",
+]
+
+[project.scripts]
+video-crawler = "src.app:main"
