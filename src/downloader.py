@@ -84,11 +84,10 @@ def download_video(
         "progress_hooks": [_make_progress_hook(progress_callback)],
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "ignoreerrors": True,
         "noplaylist": True,
-        # respect robots.txt, don't use cookies
         "nocheckcertificate": True,
-        # Network resilience
         "retries": 3,
         "fragment_retries": 3,
         "extractor_retries": 3,

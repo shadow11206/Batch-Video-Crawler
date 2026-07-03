@@ -52,8 +52,19 @@
 **待关注**
 - conn.execute 返回的 cursor.lastrowid 在新版本 Python/sqlite3 中行为一致
 
-## 阶段 4：批量下载调度 — 待开始
-（完成后记录）
+## 阶段 4：批量下载调度 — 2026-07-03
+**决策**
+- ThreadPoolExecutor 做并发控制，yt-dlp 是同步的，不需要 asyncio
+- 暂停/停止用 threading.Event 信号量，在调度循环中轮询检查
+- 失败重试用指数退避（2^1, 2^2, 2^3 秒），最多 3 次
+- 调度器实例存在全局 dict 中，支持跨 Streamlit session 启停
+
+**踩坑**
+- yt-dlp 进度条输出刷屏 stdout → 后续需要在 downloader 中加 `noprogress: True`
+- 调度器的 `run()` 是阻塞调用 → start_task 用 daemon 线程包装，不阻塞 UI
+
+**待关注**
+- ThreadPoolExecutor 的 cancel 对已提交的 future 实际无法中断，只能等当前下载完成
 
 ## 阶段 5：Web 界面完善 — 待开始
 （完成后记录）
