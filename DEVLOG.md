@@ -26,8 +26,18 @@
 **待关注**
 - 无
 
-## 阶段 2：核心下载引擎 — 待开始
-（完成后记录）
+## 阶段 2：核心下载引擎 — 2026-07-03
+**决策**
+- 用 yt-dlp 内置 `ytsearchN:` 语法做关键词搜索，无需 YouTube API，完全免费
+- 画质通过 yt-dlp format string 控制（`bestvideo[height<=720]`），不硬编码分辨率
+- 所有下载器功能放在单文件 `downloader.py`，职责清晰：搜索、下载、元信息获取
+
+**踩坑**
+- `match_filter_func` 过滤视频时，yt-dlp 跳过下载但仍返回 info dict → 需额外检查文件是否存在判断是否真的下载成功
+- 函数名是 `match_filter_func` 不是 `match_filter`，API 文档易误导
+
+**待关注**
+- X 和 B站 平台尚未实测下载，后续阶段6单独验证
 
 ## 阶段 3：任务管理与持久化 — 待开始
 （完成后记录）
