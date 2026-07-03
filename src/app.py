@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
 import threading
 from src.db import init_db, create_task, get_task, list_tasks, update_task, delete_task, list_task_videos, get_stats
