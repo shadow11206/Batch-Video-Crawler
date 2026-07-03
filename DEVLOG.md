@@ -39,8 +39,18 @@
 **待关注**
 - X 和 B站 平台尚未实测下载，后续阶段6单独验证
 
-## 阶段 3：任务管理与持久化 — 待开始
-（完成后记录）
+## 阶段 3：任务管理与持久化 — 2026-07-03
+**决策**
+- SQLite + WAL 模式，轻量且支持并发读
+- URL 唯一约束放在 `(task_id, url)` 上，允许不同任务下载同一视频
+- 状态机简单：pending → downloading → completed/failed
+
+**踩坑**
+- `add_video` 的 INSERT 和 `get_video` 的 SELECT 用了不同连接 → 新连接看不到未提交的事务 → INSERT 成功但返回 None
+  - 修复：同一连接内执行 INSERT + SELECT，然后 commit
+
+**待关注**
+- conn.execute 返回的 cursor.lastrowid 在新版本 Python/sqlite3 中行为一致
 
 ## 阶段 4：批量下载调度 — 待开始
 （完成后记录）
