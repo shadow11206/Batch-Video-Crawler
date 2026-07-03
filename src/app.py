@@ -98,9 +98,17 @@ with st.sidebar:
     st.write("**存储路径**")
     col_path, col_btn = st.columns([3, 1])
     with col_path:
+        # Apply picked folder from previous click
+        if st.session_state.get("_picked_path"):
+            st.session_state.save_path = st.session_state["_picked_path"]
+            st.session_state["_picked_path"] = ""
+
+        if "save_path" not in st.session_state:
+            st.session_state.save_path = "./data/videos/"
+
+    with col_path:
         save_path = st.text_input(
             "存储路径",
-            value=st.session_state.get("save_path_val", "./data/videos/"),
             label_visibility="collapsed",
             key="save_path",
         )
@@ -108,7 +116,7 @@ with st.sidebar:
         if st.button("📁 选择", key="pick_folder_btn", help="选择本地文件夹"):
             picked = pick_folder()
             if picked:
-                st.session_state["save_path_val"] = picked
+                st.session_state["_picked_path"] = picked
                 st.rerun()
 
     if st.button("⬇ 开始下载", type="primary", use_container_width=True, key="start_btn"):
