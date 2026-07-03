@@ -164,6 +164,10 @@ class DownloadScheduler:
                     filepath=result["filepath"],
                     file_size=file_size,
                 )
+                # Update task counter immediately for real-time progress
+                t = get_task(self.task_id)
+                if t:
+                    update_task(self.task_id, completed_videos=t.completed_videos + 1)
                 if progress_callback:
                     progress_callback(video.id, "completed")
                 return
@@ -176,6 +180,9 @@ class DownloadScheduler:
             status="failed",
             error_msg=f"重试 {MAX_RETRIES} 次后仍然失败",
         )
+        t = get_task(self.task_id)
+        if t:
+            update_task(self.task_id, failed_videos=t.failed_videos + 1)
         if progress_callback:
             progress_callback(video.id, "failed")
 
