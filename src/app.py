@@ -1,8 +1,7 @@
-import sys, os
+import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-import threading
 from src.db import init_db, create_task, get_task, list_tasks, update_task, delete_task, list_task_videos, get_stats
 from src.scheduler import start_task, pause_task, resume_task, cancel_task, get_scheduler
 
@@ -88,7 +87,51 @@ with st.sidebar:
     with c4:
         concurrency = st.number_input("并发数", min_value=1, max_value=10, value=3, key="concurrency")
 
-    save_path = st.text_input("存储路径", value="./data/videos/", key="save_path")
+    # ── Storage path with folder picker ──
+    st.write("存储路径")
+    pc1, pc2 = st.columns([4, 1])
+    with pc1:
+        save_path = st.text_input(
+            "存储路径",
+            value=st.session_state.get("save_path_val", "./data/videos/"),
+            label_visibility="collapsed",
+            key="save_path",
+        )
+        st.session_state["save_path_val"] = save_path
+    with pc2:
+        show_browser = st.button("📁 选择文件夹", key="browse_btn", use_container_width=True)
+
+    if "show_folder_browser" not in st.session_state:
+        st.session_state.show_folder_browser = False
+    if show_browser:
+        st.session_state.show_folder_browser = not st.session_state.show_folder_browser
+
+    if st.session_state.show_folder_browser:
+        current = os.path.abspath(save_path) if save_path else os.path.expanduser("~")
+        if not os.path.isdir(current):
+            parent = os.path.dirname(current)
+            current = parent if os.path.isdir(parent) else os.path.expanduser("~")
+
+        parent_dir = os.path.dirname(current)
+        if st.button(f"📂 .. 上级目录", key="folder_parent"):
+            st.session_state["save_path_val"] = parent_dir
+            st.rerun()
+
+        try:
+            entries = sorted(os.listdir(current))
+            dirs = [e for e in entries if os.path.isdir(os.path.join(current, e)) and not e.startswith(".")]
+        except PermissionError:
+            dirs = []
+
+        for d in dirs[:8]:
+            full = os.path.join(current, d)
+            if st.button(f"📁 {d}", key=f"folder_{d}_{hash(full)}"):
+                st.session_state["save_path_val"] = full
+                st.rerun()
+
+        if len(dirs) > 8:
+            st.caption(f"...还有 {len(dirs) - 8} 个文件夹")
+        st.caption(f"当前目录: {current}")
 
     # ── Create button ──
     if st.button("⬇ 开始下载", type="primary", use_container_width=True, key="start_btn"):
@@ -210,5 +253,6 @@ else:
 
 # ── Auto-refresh for active tasks ──
 if active_tasks:
-    threading.Timer(3.0, lambda: None).start()  # Placeholder — Streamlit auto-refresh handled client-side
-    st.caption("💡 页面每 30 秒自动刷新。手动刷新查看最新状态。")
+    st.caption("⏳ 自动刷新中...")
+    time.sleep(2)
+    st.rerun()
