@@ -103,26 +103,26 @@ def download_video(
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             if info is None:
-                return None
+                return {"error": "yt-dlp 无法获取视频信息"}
             if "entries" in info:
                 info = info["entries"][0] if info["entries"] else None
                 if info is None:
-                    return None
+                    return {"error": "视频列表为空"}
 
             # Determine actual output filepath
             prepared = ydl.prepare_filename(info)
             if os.path.exists(prepared):
                 filepath = prepared
             else:
-                # yt-dlp may append extension, try common ones
                 base = os.path.splitext(prepared)[0]
+                found = False
                 for ext in (".mp4", ".mkv", ".webm"):
                     if os.path.exists(base + ext):
                         filepath = base + ext
+                        found = True
                         break
-                else:
-                    # File doesn't exist — filtered (duration/quality) or failed
-                    return None
+                if not found:
+                    return {"error": "下载后找不到文件（可能被平台拒绝或需登录）"}
 
             return {
                 "id": info.get("id", ""),
@@ -130,8 +130,8 @@ def download_video(
                 "filepath": filepath,
                 "platform": platform,
             }
-    except Exception:
-        return None
+    except Exception as e:
+        return {"error": str(e)[:200]}
 
 
 # ── Search function ──────────────────────────────────────

@@ -144,6 +144,7 @@ class DownloadScheduler:
                     f.cancel()
 
     def _download_one(self, video, task, progress_callback=None):
+        last_error = "未知错误"
         for attempt in range(1, MAX_RETRIES + 1):
             if self._stop_flag.is_set():
                 return
@@ -155,34 +156,29 @@ class DownloadScheduler:
                 max_duration=task.max_duration,
             )
 
-            if result is not None:
+            if "filepath" in result:
                 import os
-                file_size = os.path.getsize(result["filepath"]) if os.path.exists(result["filepath"]) else 0
+                fp = result["filepath"]
+                file_size = os.path.getsize(fp) if os.path.exists(fp) else 0
                 update_video(
                     video.id,
                     status="completed",
-                    filepath=result["filepath"],
+                    filepath=fp,
                     file_size=file_size,
                 )
-                # Update task counter immediately for real-time progress
-                t = get_task(self.task_id)
-                if t:
-                    update_task(self.task_id, completed_videos=t.completed_videos + 1)
                 if progress_callback:
                     progress_callback(video.id, "completed")
                 return
 
+            last_error = result.get("error", "未知错误")
             if attempt < MAX_RETRIES:
-                time.sleep(2 ** attempt)  # exponential backoff
+                time.sleep(2 ** attempt)
 
         update_video(
             video.id,
             status="failed",
-            error_msg=f"重试 {MAX_RETRIES} 次后仍然失败",
+            error_msg=last_error[:300],
         )
-        t = get_task(self.task_id)
-        if t:
-            update_task(self.task_id, failed_videos=t.failed_videos + 1)
         if progress_callback:
             progress_callback(video.id, "failed")
 
