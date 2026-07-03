@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Crawler - 批量视频下载</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --surface-hover: #f1f3f6;
+    --border: #e6e8ed;
+    --text: #1a1d23;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --accent: #6366f1;
+    --accent-light: #eef2ff;
+    --accent-hover: #4f46e5;
+    --green: #10b981;
+    --green-bg: #ecfdf5;
+    --amber: #f59e0b;
+    --amber-bg: #fffbeb;
+    --red: #ef4444;
+    --red-bg: #fef2f2;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.04);
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ====== Sidebar ====== */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--accent);
+  }
+  .logo .icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 18px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  .form-group .hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    transition: all .15s;
+    outline: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+    background: var(--surface);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .platform-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .chip {
+    padding: 6px 11px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    background: var(--surface);
+    transition: all .15s;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); background: var(--accent-light); }
+  .chip.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .param-row {
+    display: flex; gap: 8px;
+  }
+  .param-row .form-group { flex: 1; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    border: none;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    width: 100%;
+    padding: 11px 16px;
+    box-shadow: 0 1px 3px rgba(99,102,241,.3);
+  }
+  .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,.35); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface-hover); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-warning {
+    background: var(--amber-bg);
+    color: #b45309;
+    border: 1px solid #fcd34d;
+  }
+  .btn-warning:hover { background: #fef3c7; }
+  .btn-danger {
+    background: var(--red-bg);
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+  }
+  .btn-danger:hover { background: #fee2e2; }
+
+  .path-picker {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .path-text {
+    flex: 1;
+    padding: 9px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ====== Main ====== */
+  .main {
+    flex: 1;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .page-header h1 {
+    font-size: 22px; font-weight: 700;
+  }
+  .stats-row {
+    display: flex; gap: 14px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: var(--shadow-sm);
+    min-width: 140px;
+  }
+  .stat-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .stat-icon.purple { background: var(--accent-light); color: var(--accent); }
+  .stat-icon.green { background: var(--green-bg); color: var(--green); }
+  .stat-icon.amber { background: var(--amber-bg); color: var(--amber); }
+  .stat-value { font-size: 22px; font-weight: 700; letter-spacing: -.03em; }
+  .stat-label { font-size: 12px; color: var(--text-muted); }
+
+  /* ====== Task Cards ====== */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-header h2 { font-size: 15px; font-weight: 600; }
+
+  .task-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .task-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    box-shadow: var(--shadow-sm);
+    transition: all .15s;
+  }
+  .task-card:hover { box-shadow: var(--shadow); }
+
+  .task-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .task-name {
+    font-weight: 600; font-size: 14px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-running { background: var(--accent-light); color: var(--accent); }
+  .badge-done { background: var(--green-bg); color: var(--green); }
+  .badge-paused { background: var(--amber-bg); color: var(--amber); }
+
+  .task-meta {
+    display: flex; gap: 16px;
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .task-meta span { display: flex; align-items: center; gap: 4px; }
+
+  .progress-bar-wrap {
+    background: var(--bg);
+    border-radius: 20px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 20px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    transition: width .4s ease;
+  }
+  .progress-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  .task-actions {
+    display: flex; gap: 6px; margin-top: 10px;
+  }
+
+  /* ====== Video Table ====== */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead { background: var(--bg); }
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted);
+  }
+  td {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+  }
+  tr:hover td { background: var(--surface-hover); }
+
+  .file-name {
+    font-weight: 500;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .status-dot {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px;
+  }
+  .status-dot::before {
+    content: '';
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.success::before { background: var(--green); }
+  .status-dot.downloading::before { background: var(--accent); animation: pulse 1.2s ease infinite; }
+  .status-dot.failed::before { background: var(--red); }
+  .status-dot.queued::before { background: var(--border); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+  .empty-state p { font-size: 13px; }
+
+  /* ====== Responsive ====== */
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; min-width: 0; }
+    .main { padding: 20px; }
+    .stats-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 侧边栏 -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="icon">▶</div>
+    Video Crawler
+  </div>
+
+  <div>
+    <div class="section-title">新建下载任务</div>
+
+    <div class="form-group">
+      <label>关键词 <span class="hint">每行一个，或用逗号分隔</span></label>
+      <textarea placeholder="烹饪教程, 街头采访, 纪录片自然风景" rows="3"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>平台</label>
+      <div class="platform-chips">
+        <span class="chip active">YouTube</span>
+        <span class="chip">X</span>
+        <span class="chip">B站</span>
+      </div>
+    </div>
+
+    <div class="param-row">
+      <div class="form-group">
+        <label>画质</label>
+        <select>
+          <option>720p</option>
+          <option>1080p</option>
+          <option>480p</option>
+          <option>360p</option>
+          <option>最高可用</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>最多时长</label>
+        <select>
+          <option>10 分钟</option>
+          <option>5 分钟</option>
+          <option>15 分钟</option>
+          <option>30 分钟</option>
+          <option>自定义</option>
+          <option>不限</option>
+        </select>
+        <input type="number" class="custom-duration" placeholder="分钟" min="1" style="display:none; margin-top:6px;">
+      </div>
+    </div>
+
+    <div class="param-row">
+      <div class="form-group">
+        <label>每关键词数量</label>
+        <input type="number" value="100" min="1" max="500">
+      </div>
+      <div class="form-group">
+        <label>并发数</label>
+        <input type="number" value="3" min="1" max="10">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>存储路径</label>
+      <div class="path-picker">
+        <span class="path-text">./data/videos/</span>
+        <button class="btn btn-ghost btn-sm browse-btn">📁 选择文件夹</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary">⬇ 开始下载</button>
+  </div>
+
+</aside>
+
+<!-- 主区域 -->
+<main class="main">
+  <div class="page-header">
+    <h1>任务面板</h1>
+    <button class="btn btn-ghost btn-sm">⚙ 设置</button>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-icon purple">📹</div>
+      <div>
+        <div class="stat-value">847</div>
+        <div class="stat-label">已下载视频</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green">✅</div>
+      <div>
+        <div class="stat-value">93%</div>
+        <div class="stat-label">成功率</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon amber">📦</div>
+      <div>
+        <div class="stat-value">12.4 GB</div>
+        <div class="stat-label">总大小</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 运行中的任务 -->
+  <div>
+    <div class="section-header">
+      <h2>运行中</h2>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:12px;color:var(--text-muted)">2 个任务</span>
+        <button class="btn btn-warning btn-sm">⏸ 暂停全部</button>
+        <button class="btn btn-danger btn-sm">✕ 取消全部</button>
+      </div>
+    </div>
+    <div class="task-list">
+      <div class="task-card">
+        <div class="task-card-header">
+          <span class="task-name">烹饪教程 × 中式烹饪 × 西式料理</span>
+          <span class="badge badge-running">● 下载中</span>
+        </div>
+        <div class="task-meta">
+          <span>📹 YouTube</span>
+          <span>🎯 720p</span>
+          <span>⏱ ≤10min</span>
+          <span>📊 45/100</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:45%"></div>
+        </div>
+        <div class="progress-text">45% · 剩余约 8 分钟</div>
+        <div class="task-actions">
+          <button class="btn btn-ghost btn-sm">⏸ 暂停</button>
+          <button class="btn btn-ghost btn-sm">✕ 取消</button>
+        </div>
+      </div>
+
+      <div class="task-card">
+        <div class="task-card-header">
+          <span class="task-name">街头采访 × 路人问答 × 随机访谈</span>
+          <span class="badge badge-running">● 下载中</span>
+        </div>
+        <div class="task-meta">
+          <span>📹 YouTube + B站</span>
+          <span>🎯 1080p</span>
+          <span>⏱ ≤15min</span>
+          <span>📊 12/120</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:10%"></div>
+        </div>
+        <div class="progress-text">10% · 剩余约 22 分钟</div>
+        <div class="task-actions">
+          <button class="btn btn-ghost btn-sm">⏸ 暂停</button>
+          <button class="btn btn-ghost btn-sm">✕ 取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 已完成的视频 -->
+  <div>
+    <div class="section-header">
+      <h2>已下载视频</h2>
+      <span style="font-size:12px;color:var(--text-muted)">最近 50 条</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>文件名</th>
+            <th>平台</th>
+            <th>大小</th>
+            <th>画质</th>
+            <th>状态</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="file-name">烹饪教程_红烧肉家常做法_d84k2a.mp4</td>
+            <td>YouTube</td>
+            <td>48.2 MB</td>
+            <td>720p</td>
+            <td><span class="status-dot success">完成</span></td>
+            <td><button class="btn btn-ghost btn-sm">▶</button></td>
+          </tr>
+          <tr>
+            <td class="file-name">烹饪教程_刀工基本功教学_a1b9c3.mp4</td>
+            <td>YouTube</td>
+            <td>62.1 MB</td>
+            <td>720p</td>
+            <td><span class="status-dot success">完成</span></td>
+            <td><button class="btn btn-ghost btn-sm">▶</button></td>
+          </tr>
+          <tr>
+            <td class="file-name">街头采访_你月薪多少_m3f7g2.mp4</td>
+            <td>B站</td>
+            <td>31.8 MB</td>
+            <td>1080p</td>
+            <td><span class="status-dot downloading">下载中</span></td>
+            <td><button class="btn btn-ghost btn-sm">—</button></td>
+          </tr>
+          <tr>
+            <td class="file-name">烹饪教程_西餐摆盘技巧_x9k2p5.mp4</td>
+            <td>YouTube</td>
+            <td>—</td>
+            <td>720p</td>
+            <td><span class="status-dot failed">失败</span></td>
+            <td><button class="btn btn-ghost btn-sm">↻ 重试</button></td>
+          </tr>
+          <tr>
+            <td class="file-name">街头采访_路人随机问答_v7n1m4.mp4</td>
+            <td>X</td>
+            <td>12.3 MB</td>
+            <td>720p</td>
+            <td><span class="status-dot queued">排队中</span></td>
+            <td><button class="btn btn-ghost btn-sm">—</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+  // 自定义时长切换
+  const durationSelect = document.querySelector('.param-row select');
+  const customInput = document.querySelector('.custom-duration');
+  durationSelect.addEventListener('change', function() {
+    customInput.style.display = this.value === '自定义' ? 'block' : 'none';
+  });
+</script>
+</body>
+</html>
