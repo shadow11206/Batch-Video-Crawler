@@ -66,8 +66,17 @@
 **待关注**
 - ThreadPoolExecutor 的 cancel 对已提交的 future 实际无法中断，只能等当前下载完成
 
-## 阶段 5：Web 界面完善 — 待开始
-（完成后记录）
+## 阶段 5：Web 界面完善 — 2026-07-03
+**决策**
+- app.py 直接导入所有后端模块（downloader/db/scheduler），不做额外的 API 层，Streamlit 本身就是全栈
+- 任务状态通过 SQLite 持久化，页面刷新后直接读 DB 恢复
+- 暂停/继续/取消按钮与 scheduler 的 threading.Event 信控对接
+
+**踩坑**
+- 无重大踩坑，后端接口设计时已考虑 Streamlit 的 session rerun 模式
+
+**待关注**
+- 页面需要手动刷新（按 F5）才能在任务进行中看到最新进度，后续可加 WebSocket 或 auto-refresh
 
 ## 阶段 6：打磨与测试 — 待开始
 （完成后记录）
