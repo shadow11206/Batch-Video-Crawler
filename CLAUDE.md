@@ -20,10 +20,11 @@ Batch Video Crawler/
 ├── data/
 │   ├── videos/             # 下载的视频文件
 │   └── tasks.db            # SQLite 数据库
+├── pyproject.toml             # 项目元数据
+├── requirements.txt           # Python 依赖
 ├── spec.md                 # 需求规格
 ├── todo.md                 # 开发任务
-├── DEVLOG.md               # 开发记录（决策原因 + 踩坑）
-└── requirements.txt
+└── DEVLOG.md               # 开发记录（决策原因 + 踩坑）
 ```
 
 ## 关键约定
