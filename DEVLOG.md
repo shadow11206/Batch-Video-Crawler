@@ -73,10 +73,14 @@
 - 暂停/继续/取消按钮与 scheduler 的 threading.Event 信控对接
 
 **踩坑**
-- 无重大踩坑，后端接口设计时已考虑 Streamlit 的 session rerun 模式
+- `streamlit run` 启动后浏览器报 `ModuleNotFoundError: No module named 'src'`
+  - 原因：Streamlit 启动脚本时不把项目根目录加入 `sys.path`，而 `python3 -c` 直接测导入时会自动加 `.`
+  - 为什么之前没发现：验证只用了 `curl` 看服务是否启动 + `python3 -c` 测导入，没打开浏览器看实际渲染结果
+  - 修复：`app.py` 和 `scheduler.py` 顶部加 `sys.path.insert(0, 项目根目录)`
 
 **待关注**
-- 页面需要手动刷新（按 F5）才能在任务进行中看到最新进度，后续可加 WebSocket 或 auto-refresh
+- 页面需要手动刷新（按 F5）才能在任务进行中看到最新进度，后续可加 auto-refresh
+- 验证流程缺陷：未来「页面能启动」的验证必须包含打开浏览器确认无红色错误框，不能只靠 `curl` 判断
 
 ## 阶段 6：打磨与测试 — 2026-07-03
 **决策**
