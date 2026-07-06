@@ -65,10 +65,11 @@ class DownloadScheduler:
     # ── Internal ────────────────────────────────────────
 
     def _collect_videos(self, task):
-        """Search for each keyword and add videos to DB."""
+        """Search for each keyword and add videos to DB. Pre-filter by duration."""
         keywords = task.keyword_list
         platforms = task.platform_list
         total = 0
+        skipped_duration = 0
 
         for keyword in keywords:
             if self._stop_flag.is_set():
@@ -78,10 +79,24 @@ class DownloadScheduler:
                 if self._stop_flag.is_set():
                     return
 
-                results = search_videos(keyword, platform, task.per_keyword_count)
+                # 多搜一些，因为有时长过滤会筛掉一部分
+                search_count = task.per_keyword_count * 3
+                results = search_videos(keyword, platform, search_count)
+
                 for vi in results:
                     if self._stop_flag.is_set():
                         return
+
+                    # 提前按时长过滤，避免下载阶段才发现
+                    if task.max_duration and vi.duration:
+                        if vi.duration > task.max_duration * 60:
+                            skipped_duration += 1
+                            continue
+
+                    # 已经够了就停
+                    if total >= task.per_keyword_count:
+                        break
+
                     result = add_video({
                         "task_id": task.id,
                         "keyword": keyword,
@@ -93,7 +108,8 @@ class DownloadScheduler:
                     })
                     if result is not None:
                         total += 1
-                time.sleep(0.5)  # rate limiting between searches
+
+                time.sleep(0.5)
 
         update_task(self.task_id, total_videos=total)
 
