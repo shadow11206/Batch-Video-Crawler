@@ -225,6 +225,24 @@ class DownloadScheduler:
 _active_schedulers: dict[str, DownloadScheduler] = {}
 
 
+def start_download_only(task_id: str, progress_callback: Callable | None = None) -> DownloadScheduler:
+    """Download-only mode: skip search, directly download videos already in DB."""
+    sched = DownloadScheduler(task_id)
+    _active_schedulers[task_id] = sched
+
+    def _run():
+        task = get_task(task_id)
+        if task is None:
+            return
+        update_task(task_id, status="running")
+        sched._download_pending(task, progress_callback)
+        sched._update_task_stats()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return sched
+
+
 def start_task(task_id: str, progress_callback: Callable | None = None) -> DownloadScheduler:
     """Start a task in a background thread. Returns the scheduler handle."""
     sched = DownloadScheduler(task_id)
