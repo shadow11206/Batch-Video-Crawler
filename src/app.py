@@ -130,7 +130,11 @@ with st.sidebar:
         if not search_kw.strip():
             st.error("请输入关键词")
         elif search_platform == "X" and not has_x_cookies():
-            st.error("X 搜索需要 Cookie。请按下方说明配置 x_cookies.txt")
+            st.error("X 搜索暂不可用。请在 X 网页搜索后粘贴链接，或运行 enable_chrome_debug.sh 后重试")
+        elif search_platform == "X":
+            # 尝试 X 搜索（需要 Chrome 调试端口 + api.x.com 通）
+            st.warning("X 搜索受网络限制，如果长时间无反应请改用 URL 粘贴模式")
+            # 继续走搜索流程（不阻止）
         else:
             # 多搜一些补偿时长过滤
             fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
