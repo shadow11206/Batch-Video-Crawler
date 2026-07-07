@@ -36,21 +36,20 @@ class DownloadScheduler:
         if task is None:
             return
 
-        update_task(self.task_id, status="running")
+        try:
+            update_task(self.task_id, status="running")
 
-        # Phase 1: search and collect videos
-        if not self._stop_flag.is_set():
-            self._collect_videos(task)
+            if not self._stop_flag.is_set():
+                self._collect_videos(task)
 
-        # Phase 2: download pending videos
-        if not self._stop_flag.is_set():
-            self._download_pending(task, progress_callback)
+            if not self._stop_flag.is_set():
+                self._download_pending(task, progress_callback)
 
-        # Final status
-        if self._stop_flag.is_set():
-            update_task(self.task_id, status="cancelled")
-        else:
-            self._update_task_stats()
+            if self._stop_flag.is_set():
+                update_task(self.task_id, status="cancelled")
+        finally:
+            if not self._stop_flag.is_set():
+                self._update_task_stats()
 
     def pause(self):
         self._pause_flag.set()
@@ -234,9 +233,11 @@ def start_download_only(task_id: str, progress_callback: Callable | None = None)
         task = get_task(task_id)
         if task is None:
             return
-        update_task(task_id, status="running")
-        sched._download_pending(task, progress_callback)
-        sched._update_task_stats()
+        try:
+            update_task(task_id, status="running")
+            sched._download_pending(task, progress_callback)
+        finally:
+            sched._update_task_stats()
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()

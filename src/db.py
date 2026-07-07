@@ -345,3 +345,25 @@ def get_stats() -> dict:
         "total_size_bytes": total_size,
         "success_rate": success_rate,
     }
+
+
+def reset_stuck_downloads() -> int:
+    """把卡在'downloading'状态的视频重置为'pending'（调度器崩了后的恢复）。"""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE videos SET status='pending', updated_at=? WHERE status='downloading'",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        return cur.rowcount
+
+
+def reset_stuck_tasks() -> int:
+    """把'pending'或'running'状态但没有进行中下载的任务标记为'paused'。"""
+    with get_conn() as conn:
+        # 找到状态是running/pending但没有downloading中视频的任务
+        cur = conn.execute("""
+            UPDATE tasks SET status='paused', updated_at=?
+            WHERE status IN ('running','pending')
+            AND id NOT IN (SELECT DISTINCT task_id FROM videos WHERE status='downloading')
+        """, (datetime.now(timezone.utc).isoformat(),))
+        return cur.rowcount

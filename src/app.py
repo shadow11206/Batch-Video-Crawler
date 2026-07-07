@@ -2,7 +2,7 @@ import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls
+from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls, reset_stuck_downloads, reset_stuck_tasks
 from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
 from src.downloader import search_videos
 from src.x_search import has_x_cookies
@@ -10,6 +10,10 @@ from src.x_search import has_x_cookies
 
 st.set_page_config(page_title="Video Crawler", page_icon="▶", layout="wide", initial_sidebar_state="expanded")
 init_db()
+
+# 恢复上次崩掉的调度器：把卡住的视频和任务重置
+reset_stuck_downloads()
+reset_stuck_tasks()
 
 # ── Session state init ──────────────────────────────────
 
