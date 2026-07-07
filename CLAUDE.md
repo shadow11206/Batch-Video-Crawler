@@ -8,15 +8,17 @@
 - yt-dlp（核心下载引擎）
 - Streamlit（Web UI）
 - SQLite（任务状态存储）
+- Playwright（X/Twitter 搜索用）
 
-## 项目结构（规划）
+## 项目结构
 ```
 Batch Video Crawler/
 ├── src/
 │   ├── app.py              # Streamlit 入口
 │   ├── downloader.py       # yt-dlp 封装
 │   ├── scheduler.py        # 批量下载调度
-│   └── db.py               # SQLite 操作
+│   ├── db.py               # SQLite 操作
+│   └── x_search.py         # X/Twitter 搜索（Playwright+cookie）
 ├── data/
 │   ├── videos/             # 下载的视频文件
 │   └── tasks.db            # SQLite 数据库
@@ -42,9 +44,9 @@ Batch Video Crawler/
 - 单类别（200 个）≈ 10-20GB
 
 ## 平台注意事项
-- YouTube：yt-dlp 稳定支持，速率限制宽松
-- X/Twitter：视频通常较短，但账号可能限制访问
-- B站：yt-dlp 支持，部分视频需要 cookie
+- YouTube：yt-dlp 稳定支持，速率限制宽松。搜索用 ytsearch 语法
+- X/Twitter：搜索用 Playwright + EditThisCookie 导出 cookie（x_cookies.txt）。下载用 yt-dlp + Netscape cookie。格式只能用 best，不能设自定义 http_headers（空Referer会403）
+- B站：搜索下载都需要自定义 User-Agent 和 Referer header。格式用 best，需完整提取才能拿标题
 
 ## 开发流程
 - 并行任务使用 git worktree 隔离开发，每个独立任务一个 worktree

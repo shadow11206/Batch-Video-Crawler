@@ -107,3 +107,24 @@
 - 在收集阶段就按时长过滤，凑够目标数量后再开始下载
 - 之前：搜5个 → 1个合格 → 只下1个
 - 之后：搜15个 → 过滤 → 凑够5个合格 → 下5个
+
+## X/Twitter 搜索下载 — 2026-07-07
+
+历时最长的功能，踩坑无数：
+
+### 搜索方案演化
+1. **yt-dlp 搜索** → X 没有内置 search extractor（YouTube/B站有）
+2. **twikit + cookie** → `api.x.com` 在中国网络超时
+3. **Playwright 沙箱** → X 检测到自动化浏览器，拦截登录
+4. **原生 Chrome CDP** → Chrome 149 macOS 调试端口不响应
+5. **Playwright + EditThisCookie + 反检测** ✅ 成功
+
+### 下载方案演化
+1. **URL格式错误** → `/i/status/` 改为 `/{username}/status/{id}`
+2. **格式字符串不兼容** → `bestvideo[height<=720]` X不认 → 改 `best`
+3. **http_headers空Referer** → X CDN返回403 → X/YouTube不设自定义headers，仅B站需要
+
+### 最终方案
+- 搜索：Playwright Chromium + EditThisCookie导出的JSON cookie + 反webdriver检测
+- 下载：yt-dlp + Netscape格式cookie（自动从JSON转换） + `best`格式
+- 限制：X"视频"搜索含GIF/嵌入视频，部分无法下载（约50%成功率）
