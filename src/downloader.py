@@ -130,11 +130,14 @@ def download_video(
         "fragment_retries": 3,
         "extractor_retries": 3,
         "socket_timeout": 30,
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            "Referer": "https://www.bilibili.com/" if platform == "bilibili" else "",
-        },
     }
+
+    # B站需要自定义 headers，X/YouTube 不能设空Referer（会403）
+    if platform == "bilibili":
+        ydl_opts["http_headers"] = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Referer": "https://www.bilibili.com/",
+        }
 
     # X/Twitter 下载需要 cookie
     x_cookie = _find_cookie_file()
