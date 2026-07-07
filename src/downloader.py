@@ -107,9 +107,9 @@ def download_video(
     """
     platform = detect_platform(url)
 
-    # B站用 best 兜底（不兼容 bestvideo/bestaudio 语法）
-    if platform == "bilibili":
-        fmt = "bestvideo+bestaudio/best"
+    # B站和 X 不兼容 bestvideo/bestaudio 语法，直接用 best
+    if platform in ("bilibili", "x"):
+        fmt = "best"
     else:
         fmt = QUALITY_FORMATS.get(quality, QUALITY_FORMATS["720p"])
 
