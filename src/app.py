@@ -3,7 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video
-from src.scheduler import start_task, start_download_only, pause_task, resume_task, cancel_task
+from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
 from src.downloader import search_videos
 
 
@@ -16,6 +16,10 @@ if "search_results" not in st.session_state:
     st.session_state.search_results = []
 if "search_keyword" not in st.session_state:
     st.session_state.search_keyword = ""
+if "selected_ids" not in st.session_state:
+    st.session_state.selected_ids = set()
+if "video_map" not in st.session_state:
+    st.session_state.video_map = {}  # {id: {title, url, keyword, platform, duration}}
 
 # ── Helpers ─────────────────────────────────────────────
 
@@ -34,6 +38,17 @@ def fmt_duration(sec: float | None) -> str:
     m, s = divmod(int(sec), 60)
     return f"{m}:{s:02d}"
 
+def merge_results(existing: list, new: list) -> list:
+    """Merge new results into existing list, dedup by id."""
+    seen = {v.id for v in existing}
+    added = []
+    for v in new:
+        if v.id not in seen:
+            existing.append(v)
+            seen.add(v.id)
+            added.append(v)
+    return added
+
 
 # ══════════════════════════════════════════════════════════
 #  Sidebar
@@ -43,11 +58,17 @@ with st.sidebar:
     st.markdown("### ▶ Video Crawler")
     st.divider()
 
-    # ── Step 1: Search ──
+    # ── Search ──
     st.markdown("#### 1. 搜索视频")
-    search_kw = st.text_input("关键词", placeholder="输入关键词后点击搜索", key="search_input")
-    search_platform = st.selectbox("平台", ["YouTube", "X", "B站"], key="search_platform")
-    search_count = st.slider("搜索数量", 5, 50, 20, key="search_count")
+    search_kw = st.text_input("关键词", placeholder="输入关键词后点击搜索")
+
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        search_platform = st.selectbox("平台", ["YouTube", "X", "B站"])
+    with col_s2:
+        search_mode = st.selectbox("模式", ["新搜索", "追加搜索"], help="新搜索=替换结果, 追加=合并到现有结果并去重")
+
+    search_count = st.slider("搜索数量", 5, 200, 30)
 
     if st.button("🔍 搜索", type="primary", use_container_width=True):
         if not search_kw.strip():
@@ -55,17 +76,33 @@ with st.sidebar:
         else:
             with st.spinner(f"正在搜索 {search_kw}..."):
                 results = search_videos(search_kw, platform=search_platform.lower(), max_results=search_count)
+
+            if search_mode == "新搜索" or not st.session_state.search_results:
                 st.session_state.search_results = results
                 st.session_state.search_keyword = search_kw
-            st.success(f"找到 {len(results)} 个视频")
+                st.session_state.selected_ids = set()
+                st.session_state.video_map = {}
+            else:
+                added = merge_results(st.session_state.search_results, results)
+                st.info(f"追加 {len(added)} 个新视频（去重后）")
+
+            # 更新 video_map
+            for r in st.session_state.search_results:
+                st.session_state.video_map[r.id] = {
+                    "id": r.id, "title": r.title, "url": r.webpage_url,
+                    "keyword": st.session_state.search_keyword or search_kw,
+                    "platform": r.platform, "duration": r.duration,
+                }
+
+            st.success(f"共 {len(st.session_state.search_results)} 个视频")
             st.rerun()
 
     st.divider()
 
-    # ── Step 2: Download settings ──
+    # ── Download settings ──
     st.markdown("#### 2. 下载设置")
-    quality = st.selectbox("画质", ["720p", "1080p", "480p", "360p", "最高可用"], index=0, key="dl_quality")
-    duration_preset = st.selectbox("最大时长", ["10 分钟","5 分钟","15 分钟","30 分钟","自定义","不限"], index=0, key="dl_dur")
+    quality = st.selectbox("画质", ["720p", "1080p", "480p", "360p", "最高可用"], index=0)
+    duration_preset = st.selectbox("最大时长", ["10 分钟","5 分钟","15 分钟","30 分钟","自定义","不限"], index=0)
     if duration_preset == "自定义":
         max_duration = st.number_input("自定义（分钟）", min_value=1, value=10, step=1)
     elif duration_preset == "不限":
@@ -73,38 +110,38 @@ with st.sidebar:
     else:
         max_duration = int(duration_preset.split()[0])
 
-    concurrency = st.slider("并发数", 1, 10, 3, key="dl_conc")
-    save_path = st.text_input("存储路径", "./data/videos/", key="dl_path")
+    concurrency = st.slider("并发数", 1, 10, 3)
+    save_path = st.text_input("存储路径", "./data/videos/")
 
     # ── Download button ──
-    selected_count = len(st.session_state.get("selected_videos", []))
-    btn_label = f"⬇ 下载选中 ({selected_count} 个)" if selected_count else "⬇ 下载选中"
-    if st.button(btn_label, type="primary", use_container_width=True, disabled=(selected_count == 0)):
-        selected = st.session_state.selected_videos
+    sel_count = len(st.session_state.selected_ids)
+    btn_label = f"⬇ 下载选中 ({sel_count} 个)" if sel_count else "⬇ 下载选中"
+    if st.button(btn_label, type="primary", use_container_width=True, disabled=(sel_count == 0)):
         task = create_task({
             "keywords": st.session_state.get("search_keyword", "手动选择"),
             "platforms": search_platform,
             "quality": quality,
             "max_duration": max_duration,
-            "per_keyword_count": len(selected),
+            "per_keyword_count": sel_count,
             "concurrency": concurrency,
             "save_path": save_path,
         })
-        for v in selected:
-            add_video({
-                "task_id": task.id, "keyword": v["keyword"],
-                "video_id": v["id"], "title": v["title"], "url": v["url"],
-                "platform": v["platform"], "duration": v["duration"],
-            })
-        update_task(task.id, total_videos=len(selected))
+        for vid in st.session_state.selected_ids:
+            v = st.session_state.video_map.get(vid)
+            if v:
+                add_video({
+                    "task_id": task.id, "keyword": v["keyword"],
+                    "video_id": v["id"], "title": v["title"], "url": v["url"],
+                    "platform": v["platform"], "duration": v["duration"],
+                })
+        update_task(task.id, total_videos=sel_count)
         start_download_only(task.id)
-        st.session_state.selected_videos = []
-        st.session_state.search_results = []
-        st.success(f"任务 {task.id} 已启动 ({len(selected)} 个视频)")
+        st.success(f"任务 {task.id} 已启动 ({sel_count} 个视频)")
+        st.session_state.selected_ids = set()
         st.rerun()
 
     st.divider()
-    st.caption("提示：使用 yt-dlp 内置搜索，免费无需 API Key")
+    st.caption(f"已选 {sel_count} 个 · yt-dlp 免费搜索")
 
 
 # ══════════════════════════════════════════════════════════
@@ -113,8 +150,6 @@ with st.sidebar:
 
 st.title("Video Crawler")
 
-# ── Tab 1: Search Results ──────────────────────────────
-
 tab1, tab2 = st.tabs(["🔍 搜索结果", "📋 任务面板"])
 
 with tab1:
@@ -122,55 +157,52 @@ with tab1:
     if not results:
         st.info("在侧边栏输入关键词并点击「搜索」")
     else:
-        st.caption(f"搜索 **{st.session_state.search_keyword}** · 共 {len(results)} 个视频")
+        sel_ids = st.session_state.selected_ids
+        st.caption(f"搜索 **{st.session_state.search_keyword}** · 共 {len(results)} 个 · 已选 {len(sel_ids)} 个")
 
-        # Build selection UI
-        if "selected_videos" not in st.session_state:
-            st.session_state.selected_videos = []
-
-        selected_ids = {v["id"] for v in st.session_state.selected_videos}
-
-        # Select all / deselect all
-        c_all, c_sel, _ = st.columns([1, 1, 4])
-        with c_all:
-            if st.button("全选", key="select_all"):
-                st.session_state.selected_videos = [
-                    {"id": r.id, "title": r.title, "url": r.webpage_url,
-                     "keyword": st.session_state.search_keyword,
-                     "platform": r.platform, "duration": r.duration}
-                    for r in results
-                ]
+        # 全选 / 取消全选
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 3])
+        with c1:
+            if st.button("☑ 全选", use_container_width=True):
+                st.session_state.selected_ids = {r.id for r in results}
                 st.rerun()
-        with c_sel:
-            if st.button("取消全选", key="deselect_all"):
-                st.session_state.selected_videos = []
+        with c2:
+            if st.button("☐ 取消", use_container_width=True):
+                st.session_state.selected_ids = set()
+                st.rerun()
+        with c3:
+            if st.button("🔄 反选", use_container_width=True):
+                all_ids = {r.id for r in results}
+                st.session_state.selected_ids = all_ids - st.session_state.selected_ids
                 st.rerun()
 
-        # Video table with inline checkboxes
-        for i, r in enumerate(results):
-            cols = st.columns([0.5, 5, 1, 1])
+        # ── Video table ──
+        for r in results:
+            is_sel = r.id in sel_ids
+            title_display = r.title[:90]
+
+            cols = st.columns([0.5, 5, 1, 0.8])
             with cols[0]:
-                checked = r.id in selected_ids
-                if st.checkbox("", value=checked, key=f"chk_{i}_{r.id}", label_visibility="collapsed"):
-                    if r.id not in selected_ids:
-                        st.session_state.selected_videos.append({
-                            "id": r.id, "title": r.title, "url": r.webpage_url,
-                            "keyword": st.session_state.search_keyword,
-                            "platform": r.platform, "duration": r.duration,
-                        })
+                # 用按钮代替 checkbox，Streamlit 里更可靠
+                btn_key = f"btn_{r.id}"
+                if is_sel:
+                    if st.button("✅", key=btn_key, help="点击取消选择"):
+                        st.session_state.selected_ids.discard(r.id)
+                        st.rerun()
                 else:
-                    st.session_state.selected_videos = [
-                        v for v in st.session_state.selected_videos if v["id"] != r.id
-                    ]
+                    if st.button("⬜", key=btn_key, help="点击选择"):
+                        st.session_state.selected_ids.add(r.id)
+                        st.rerun()
             with cols[1]:
-                st.write(f"**{r.title[:80]}**")
+                st.write(f"**{title_display}**")
             with cols[2]:
                 st.caption(fmt_duration(r.duration))
             with cols[3]:
                 st.caption(r.platform)
 
         st.divider()
-        st.caption(f"已选 {len(st.session_state.selected_videos)} 个 · 在侧边栏点击「下载选中」开始下载")
+        st.caption("在侧边栏点击「下载选中」开始下载 · 追加搜索可积累更多结果")
+
 
 # ── Tab 2: Task Dashboard ──────────────────────────────
 
