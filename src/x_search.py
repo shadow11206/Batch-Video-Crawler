@@ -28,31 +28,54 @@ class XVideoResult:
     platform: str
 
 
-def _convert_netscape_to_twikit(netscape_path: str) -> dict | None:
-    """将浏览器导出的 Netscape 格式 cookie 转为 twikit 可用的 dict。"""
+def _load_cookie_file(path: str) -> dict | None:
+    """加载 cookie 文件，支持 JSON 和 Netscape 两种格式。"""
     try:
-        cj = http.cookiejar.MozillaCookieJar(netscape_path)
-        cj.load(ignore_discard=True, ignore_expires=True)
+        with open(path) as f:
+            content = f.read().strip()
 
+        cookies_list = []
+
+        if content.startswith("["):
+            # EditThisCookie JSON 格式: [{domain, name, value, ...}, ...]
+            cookies_list = json.loads(content)
+        elif content.startswith("# Netscape") or content.startswith("# HTTP Cookie"):
+            # Netscape 格式
+            cj = http.cookiejar.MozillaCookieJar(path)
+            cj.load(ignore_discard=True, ignore_expires=True)
+            cookies_list = [
+                {"domain": c.domain, "name": c.name, "value": c.value,
+                 "path": c.path, "secure": c.secure}
+                for c in cj
+            ]
+        else:
+            return None
+
+        # 同时生成 Netscape 格式给 yt-dlp 用
+        netscape_path = os.path.join(PROJECT_ROOT, "x_cookies_netscape.txt")
+        with open(netscape_path, "w") as nf:
+            nf.write("# Netscape HTTP Cookie File\n")
+            for c in cookies_list:
+                domain = c.get("domain", "")
+                flag = "TRUE" if domain.startswith(".") else "FALSE"
+                path = c.get("path", "/")
+                secure = "TRUE" if c.get("secure") else "FALSE"
+                exp = str(c.get("expirationDate", "0")).split(".")[0] if c.get("expirationDate") else "0"
+                nf.write(f"{domain}\t{flag}\t{path}\t{secure}\t{exp}\t{c.get('name','')}\t{c.get('value','')}\n")
+
+        # twikit 只需要 {name: value} 的简单键值对
         cookies_dict = {}
-        for cookie in cj:
-            name = cookie.name
-            cookies_dict[name] = {
-                "name": cookie.name,
-                "value": cookie.value,
-                "domain": cookie.domain,
-                "path": cookie.path,
-                "secure": cookie.secure,
-            }
+        for c in cookies_list:
+            name = c.get("name", "")
+            cookies_dict[name] = c.get("value", "")
 
-        # twikit 需要的核心 cookie
+        # 检查核心 cookie
         required = ["auth_token", "ct0"]
         missing = [r for r in required if r not in cookies_dict]
         if missing:
             return None
 
-        # 保存为 twikit 格式
-        os.makedirs(os.path.dirname(TWIKIT_COOKIE_FILE), exist_ok=True)
+        # 保存为 twikit 可加载的 JSON 格式
         with open(TWIKIT_COOKIE_FILE, "w") as f:
             json.dump(cookies_dict, f)
 
@@ -79,7 +102,7 @@ def search_x_videos(keyword: str, max_results: int = 20) -> list[XVideoResult]:
     if os.path.exists(TWIKIT_COOKIE_FILE):
         client.load_cookies(TWIKIT_COOKIE_FILE)
     elif os.path.exists(DEFAULT_COOKIE_FILE):
-        cookies = _convert_netscape_to_twikit(DEFAULT_COOKIE_FILE)
+        cookies = _load_cookie_file(DEFAULT_COOKIE_FILE)
         if cookies is None:
             return []
         client.set_cookies(cookies)

@@ -25,6 +25,19 @@ QUALITY_FORMATS = {
     "最高可用": "bestvideo+bestaudio/best",
 }
 
+# ── Cookie helper ────────────────────────────────────────
+
+def _find_cookie_file() -> str | None:
+    """查找项目根目录下的 X cookie 文件（Netscape 格式）。"""
+    import os as _os
+    root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    for name in ("x_cookies_netscape.txt", "x_cookies.txt"):
+        p = _os.path.join(root, name)
+        if _os.path.exists(p):
+            return p
+    return None
+
+
 # ── Platform detection ───────────────────────────────────
 
 def detect_platform(url: str) -> str:
@@ -103,6 +116,11 @@ def download_video(
             "Referer": "https://www.bilibili.com/" if platform == "bilibili" else "",
         },
     }
+
+    # X/Twitter 下载需要 cookie
+    x_cookie = _find_cookie_file()
+    if platform == "x" and x_cookie:
+        ydl_opts["cookiefile"] = x_cookie
 
     if max_duration:
         ydl_opts["match_filter"] = yt_dlp.match_filter_func(

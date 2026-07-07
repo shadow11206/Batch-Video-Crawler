@@ -72,19 +72,53 @@ with st.sidebar:
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
     # X cookie 状态
-    if not has_x_cookies():
+    x_ok = has_x_cookies()
+    if not x_ok:
         with st.expander("🔑 X/Twitter Cookie 配置（点击展开）", expanded=False):
             st.markdown("""
-            **为什么需要 Cookie？** X 要求登录才能搜索，yt-dlp 没有内置 X 搜索。
+            **1. 获取 Cookie：**
+            - Chrome/Edge 装 EditThisCookie 扩展
+            - 登录 [x.com](https://x.com) → 导出 → 保存为 `x_cookies.txt` 放项目根目录
 
-            **如何获取：**
-            1. 在 Chrome/Edge 安装 **EditThisCookie** 扩展
-            2. 打开 [x.com](https://x.com) 并登录
-            3. 点击扩展图标 → 导出 → 保存为 `x_cookies.txt`
-            4. 把文件放到项目根目录下
+            **2. X 关键词搜索需要能访问 api.x.com**（当前网络不通，需 VPN）
 
-            **换电脑：** 在新电脑浏览器重复上述步骤，替换 `x_cookies.txt`
+            **3. X URL 粘贴下载不需要 VPN**——cookie 配好后，粘贴 X 视频链接即可下载
             """)
+    else:
+        st.success("X Cookie 已配置")
+        st.caption("💡 X 关键词搜索需 VPN 访问 api.x.com，URL 粘贴下载无需 VPN")
+
+    # X URL 粘贴区
+    if x_ok:
+        with st.expander("📎 粘贴 X/Twitter 链接下载", expanded=False):
+            x_urls = st.text_area(
+                "每行一个链接",
+                placeholder="https://x.com/user/status/123456",
+                height=60,
+                key="x_urls",
+            )
+            if st.button("🔍 解析并下载", use_container_width=True):
+                urls = [u.strip() for u in x_urls.split("\n") if u.strip()]
+                if urls:
+                    added = 0
+                    with st.spinner(f"解析 {len(urls)} 个链接..."):
+                        for url in urls:
+                            info = get_video_info(url)
+                            if info and info.title:
+                                existing_ids = {r.id for r in st.session_state.search_results}
+                                if info.id not in existing_ids:
+                                    st.session_state.search_results.append(info)
+                                    st.session_state.video_map[info.id] = {
+                                        "id": info.id, "title": info.title, "url": info.webpage_url,
+                                        "keyword": "X/Twitter", "platform": info.platform, "duration": info.duration,
+                                    }
+                                    st.session_state.selected_ids.add(info.id)
+                                    added += 1
+                    if added > 0:
+                        st.success(f"已添加 {added} 个视频，可直接下载")
+                        st.rerun()
+                    else:
+                        st.warning("未能解析")
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
