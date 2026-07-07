@@ -2,7 +2,7 @@ import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video
+from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls
 from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
 from src.downloader import search_videos
 
@@ -62,11 +62,19 @@ with st.sidebar:
     st.markdown("#### 1. 搜索视频")
     search_kw = st.text_input("关键词", placeholder="输入关键词后点击搜索")
 
-    col_s1, col_s2 = st.columns(2)
+    col_s1, col_s2, col_s3 = st.columns([2, 2, 1])
     with col_s1:
         search_platform = st.selectbox("平台", ["YouTube", "X", "B站"])
     with col_s2:
         search_mode = st.selectbox("模式", ["新搜索", "追加搜索"], help="新搜索=替换结果, 追加=合并到现有结果并去重")
+    with col_s3:
+        st.write("")  # spacer
+        if st.button("🗑 清空", help="清空搜索结果", use_container_width=True):
+            st.session_state.search_results = []
+            st.session_state.search_keyword = ""
+            st.session_state.selected_ids = set()
+            st.session_state.video_map = {}
+            st.rerun()
 
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
@@ -129,14 +137,6 @@ with st.sidebar:
     # ── Download settings ──
     st.markdown("#### 2. 下载设置")
     quality = st.selectbox("画质", ["720p", "1080p", "480p", "360p", "最高可用"], index=0)
-    duration_preset = st.selectbox("最大时长", ["10 分钟","5 分钟","15 分钟","30 分钟","自定义","不限"], index=0)
-    if duration_preset == "自定义":
-        max_duration = st.number_input("自定义（分钟）", min_value=1, value=10, step=1)
-    elif duration_preset == "不限":
-        max_duration = None
-    else:
-        max_duration = int(duration_preset.split()[0])
-
     concurrency = st.slider("并发数", 1, 10, 3)
     save_path = st.text_input("存储路径", "./data/videos/")
 
@@ -148,7 +148,6 @@ with st.sidebar:
             "keywords": st.session_state.get("search_keyword", "手动选择"),
             "platforms": search_platform,
             "quality": quality,
-            "max_duration": max_duration,
             "per_keyword_count": sel_count,
             "concurrency": concurrency,
             "save_path": save_path,
@@ -204,9 +203,16 @@ with tab1:
                 st.rerun()
 
         # ── Video table ──
+        downloaded_urls = get_downloaded_urls()
+        already_count = sum(1 for r in results if r.webpage_url in downloaded_urls)
+        if already_count > 0:
+            st.caption(f"📥 其中 {already_count} 个已下载过（标记 ⬇️）")
+
         for r in results:
             is_sel = r.id in sel_ids
-            title_display = r.title[:90]
+            is_downloaded = r.webpage_url in downloaded_urls
+            prefix = "⬇️" if is_downloaded else ""
+            title_display = f"{prefix} {r.title[:90]}"
 
             cols = st.columns([0.5, 5, 1, 0.8])
             with cols[0]:

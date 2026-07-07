@@ -291,6 +291,15 @@ def video_exists(task_id: str, url: str) -> bool:
     return row is not None
 
 
+def get_downloaded_urls() -> set[str]:
+    """Return all video URLs that have been successfully downloaded across all tasks."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT url FROM videos WHERE status='completed'"
+        ).fetchall()
+    return {r["url"] for r in rows}
+
+
 def _row_to_video(row: sqlite3.Row) -> Video:
     return Video(
         id=row["id"],
