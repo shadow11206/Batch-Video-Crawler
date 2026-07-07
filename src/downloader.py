@@ -28,13 +28,32 @@ QUALITY_FORMATS = {
 # ── Cookie helper ────────────────────────────────────────
 
 def _find_cookie_file() -> str | None:
-    """查找项目根目录下的 X cookie 文件（Netscape 格式）。"""
-    import os as _os
+    """查找或生成 X cookie 文件（yt-dlp 用 Netscape 格式）。"""
+    import os as _os, json as _json
     root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-    for name in ("x_cookies_netscape.txt", "x_cookies.txt"):
-        p = _os.path.join(root, name)
-        if _os.path.exists(p):
-            return p
+
+    netscape = _os.path.join(root, "x_cookies_netscape.txt")
+    if _os.path.exists(netscape):
+        return netscape
+
+    # 尝试从 EditThisCookie JSON 生成 Netscape
+    json_path = _os.path.join(root, "x_cookies.txt")
+    if _os.path.exists(json_path):
+        try:
+            with open(json_path) as f:
+                cookies = _json.load(f)
+            with open(netscape, "w") as nf:
+                nf.write("# Netscape HTTP Cookie File\n")
+                for c in cookies:
+                    d = c.get("domain", "")
+                    flag = "TRUE" if d.startswith(".") else "FALSE"
+                    path = c.get("path", "/")
+                    secure = "TRUE" if c.get("secure") else "FALSE"
+                    exp = str(c.get("expirationDate", "0")).split(".")[0]
+                    nf.write(f"{d}\t{flag}\t{path}\t{secure}\t{exp}\t{c.get('name','')}\t{c.get('value','')}\n")
+            return netscape if _os.path.exists(netscape) else None
+        except Exception:
+            return None
     return None
 
 

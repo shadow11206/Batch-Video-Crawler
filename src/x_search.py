@@ -82,7 +82,7 @@ def search_x_videos(keyword: str, max_results: int = 20) -> list[XVideoResult]:
             page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
             time.sleep(5)
 
-            # JS 提取推文
+            # JS 提取推文（含用户名，用于构造正确URL）
             extract_js = """
             (() => {
                 const tweets = [];
@@ -90,9 +90,9 @@ def search_x_videos(keyword: str, max_results: int = 20) -> list[XVideoResult]:
                     const links = a.querySelectorAll('a[href*="/status/"]');
                     if (!links.length) return;
                     const href = links[0].getAttribute('href') || '';
-                    const m = href.match(/\\/status\\/(\\d+)/);
+                    const m = href.match(/\\/(\\w+)\\/status\\/(\\d+)/);
                     if (!m) return;
-                    tweets.push({id: m[1], text: a.innerText.slice(0, 200)});
+                    tweets.push({user: m[1], id: m[2], text: a.innerText.slice(0, 200)});
                 });
                 return JSON.stringify(tweets);
             })()
@@ -109,11 +109,13 @@ def search_x_videos(keyword: str, max_results: int = 20) -> list[XVideoResult]:
                         tid = t.get("id", "")
                         if tid and tid not in seen_ids:
                             seen_ids.add(tid)
+                            username = t.get("user", "i")
+                            url = f"https://x.com/{username}/status/{tid}"
                             results.append(XVideoResult(
                                 id=tid,
                                 title=t.get("text", "")[:120].replace("\n", " ") or f"视频 {tid[:8]}",
-                                url=f"https://x.com/i/status/{tid}",
-                                webpage_url=f"https://x.com/i/status/{tid}",
+                                url=url,
+                                webpage_url=url,
                                 duration=None,
                                 platform="x",
                             ))
