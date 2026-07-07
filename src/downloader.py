@@ -161,8 +161,13 @@ def search_videos(
     if platform == "bilibili" or platform == "b站":
         return _search_bilibili(keyword, max_results)
     elif platform == "x" or platform == "twitter":
-        # X/Twitter 没有内置搜索，返回空
-        return []
+        # X/Twitter 通过 twikit + cookie 搜索
+        from src.x_search import search_x_videos
+        x_results = search_x_videos(keyword, max_results)
+        return [VideoInfo(
+            id=r.id, title=r.title, url=r.url, webpage_url=r.webpage_url,
+            duration=r.duration, platform=r.platform,
+        ) for r in x_results]
     else:
         return _search_youtube(keyword, max_results)
 

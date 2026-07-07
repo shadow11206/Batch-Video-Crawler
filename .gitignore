@@ -12,6 +12,10 @@ data/videos/
 # 数据库
 data/tasks.db
 
+# X/Twitter cookie（敏感文件，勿提交）
+x_cookies.txt
+x_cookies_twikit.json
+
 # 环境变量
 .env
 

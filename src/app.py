@@ -5,6 +5,7 @@ import streamlit as st
 from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls
 from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
 from src.downloader import search_videos, get_video_info
+from src.x_search import has_x_cookies
 
 
 st.set_page_config(page_title="Video Crawler", page_icon="▶", layout="wide", initial_sidebar_state="expanded")
@@ -70,36 +71,20 @@ with st.sidebar:
 
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
-    # X/Twitter URL paste
-    with st.expander("📎 X/Twitter URL 粘贴（不支持关键词搜索）", expanded=False):
-        x_urls = st.text_area(
-            "每行粘贴一个 X/Twitter 视频链接",
-            placeholder="https://x.com/user/status/123456\nhttps://twitter.com/user/status/789012",
-            height=80,
-        )
-        if st.button("🔍 解析链接", use_container_width=True):
-            urls = [u.strip() for u in x_urls.split("\n") if u.strip()]
-            if urls:
-                added = 0
-                with st.spinner(f"解析 {len(urls)} 个链接..."):
-                    for url in urls:
-                        info = get_video_info(url)
-                        if info and info.title:
-                            # Add to search results via session state
-                            # Check dup
-                            existing_ids = {r.id for r in st.session_state.search_results}
-                            if info.id not in existing_ids:
-                                st.session_state.search_results.append(info)
-                                st.session_state.video_map[info.id] = {
-                                    "id": info.id, "title": info.title, "url": info.webpage_url,
-                                    "keyword": "X/Twitter", "platform": info.platform, "duration": info.duration,
-                                }
-                                added += 1
-                if added > 0:
-                    st.success(f"成功解析 {added} 个视频")
-                    st.rerun()
-                else:
-                    st.warning("未能解析任何视频（链接可能需要登录）")
+    # X cookie 状态
+    if not has_x_cookies():
+        with st.expander("🔑 X/Twitter Cookie 配置（点击展开）", expanded=False):
+            st.markdown("""
+            **为什么需要 Cookie？** X 要求登录才能搜索，yt-dlp 没有内置 X 搜索。
+
+            **如何获取：**
+            1. 在 Chrome/Edge 安装 **EditThisCookie** 扩展
+            2. 打开 [x.com](https://x.com) 并登录
+            3. 点击扩展图标 → 导出 → 保存为 `x_cookies.txt`
+            4. 把文件放到项目根目录下
+
+            **换电脑：** 在新电脑浏览器重复上述步骤，替换 `x_cookies.txt`
+            """)
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -110,8 +95,8 @@ with st.sidebar:
     if st.button("🔍 搜索", type="primary", use_container_width=True):
         if not search_kw.strip():
             st.error("请输入关键词")
-        elif search_platform in ("X", "x"):
-            st.error("X/Twitter 不支持关键词搜索。请粘贴视频链接到下方输入框。")
+        elif search_platform == "X" and not has_x_cookies():
+            st.error("X 搜索需要 Cookie。请按下方说明配置 x_cookies.txt")
         else:
             # 多搜一些补偿时长过滤
             fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
