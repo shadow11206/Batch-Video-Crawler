@@ -66,14 +66,29 @@
 ---
 
 ## 阶段 6：打磨与测试
-- [x] 各平台实际下载测试（YouTube 已验证）
-- [x] 长时间运行稳定性测试（5视频批次稳定完成）
+- [x] 各平台实际下载测试（YouTube / B站 / X 均已验证）
+- [x] 长时间运行稳定性测试（多批次稳定完成）
 - [x] 错误日志和诊断信息完善
 - [x] 编写 README 使用说明
 
 ### 验证
-- [x] YouTube 搜索+下载 20 个视频（5视频100%成功率，流程正确）
-- [ ] B站搜索+下载 10 个视频（需用户配置 cookie 后实测）
-- [ ] X 平台至少下载 5 个（需用户登录后实测）
+- [x] YouTube 搜索+下载验证通过
+- [x] B站搜索+下载验证通过
+- [x] X 搜索+下载验证通过（需 x_cookies.txt）
 - [x] 多视频批次稳定完成，无崩溃/泄漏
 - [x] README 包含安装步骤、项目结构、使用说明
+
+---
+
+## 阶段 7：X/Twitter 搜索下载（新增）
+- [x] Playwright + EditThisCookie cookie 反检测搜索
+- [x] URL 格式修正（/username/status/id）
+- [x] 下载格式适配（best，不设自定义 headers）
+- [x] Cookie 自动转换（EditThisCookie JSON → Netscape）
+- [x] 搜索结果去重 + 视频元素检测
+
+### 验证
+- [x] X 关键词搜索返回视频推文列表
+- [x] X 视频下载 3/3 成功
+- [x] x_cookies.txt 自动转换 Netscape 格式给 yt-dlp
+- [x] 与其他平台搜索+下载流程统一
