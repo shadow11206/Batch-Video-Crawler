@@ -130,28 +130,37 @@ with st.sidebar:
     st.markdown("#### 2. 下载设置")
     quality = st.selectbox("画质", ["720p", "1080p", "480p", "360p", "最高可用"], index=0)
     concurrency = st.slider("并发数", 1, 10, 3)
+    if "save_path_val" not in st.session_state:
+        st.session_state.save_path_val = "./data/videos/"
+
+    def on_path_change():
+        st.session_state.save_path_val = st.session_state.save_path_widget
+
     cpath1, cpath2 = st.columns([3, 1])
     with cpath1:
-        save_path = st.text_input("存储路径", "./data/videos/", key="save_path")
+        save_path = st.text_input(
+            "存储路径",
+            value=st.session_state.save_path_val,
+            key="save_path_widget",
+            on_change=on_path_change,
+        )
     with cpath2:
-        st.write("")  # spacer
+        st.write("")
         if st.button("📁 选择", use_container_width=True, help="打开文件夹选择器"):
             import subprocess
             script = '''
                 set folderPath to choose folder with prompt "选择视频存储文件夹"
                 POSIX path of folderPath
             '''
-            result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                chosen = result.stdout.strip()
-                # 更新 session_state 中的 save_path 值
-                st.session_state.save_path = chosen
-                st.rerun()
-            elif result.stderr:
-                # user cancelled — ignore
+            try:
+                result = subprocess.run(
+                    ["osascript", "-e", script],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    st.session_state.save_path_val = result.stdout.strip()
+                    st.rerun()
+            except subprocess.TimeoutExpired:
                 pass
 
     # ── Download button ──
@@ -164,7 +173,7 @@ with st.sidebar:
             "quality": quality,
             "per_keyword_count": sel_count,
             "concurrency": concurrency,
-            "save_path": save_path,
+            "save_path": st.session_state.save_path_val,
         })
         for vid in st.session_state.selected_ids:
             v = st.session_state.video_map.get(vid)
