@@ -70,24 +70,49 @@ with st.sidebar:
 
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        min_minutes = st.number_input("最短时长（分钟）", min_value=0, value=0, step=1)
-    with col_d2:
-        max_minutes = st.number_input("最长时长（分钟）", min_value=0, value=0, step=1, help="0=不限")
+    video_type = st.selectbox("视频类型", [
+        "全部",
+        "短视频 (<1分钟)",
+        "中视频 (1-10分钟)",
+        "长视频 (>10分钟)",
+        "自定义范围",
+    ])
+
+    # 根据类型设定时长过滤范围
+    if video_type == "短视频 (<1分钟)":
+        min_sec, max_sec = 0, 60
+    elif video_type == "中视频 (1-10分钟)":
+        min_sec, max_sec = 60, 600
+    elif video_type == "长视频 (>10分钟)":
+        min_sec, max_sec = 600, None
+    elif video_type == "自定义范围":
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            custom_min = st.number_input("最短（分钟）", min_value=0, value=0, step=1)
+        with col_d2:
+            custom_max = st.number_input("最长（分钟）", min_value=0, value=0, step=1, help="0=不限")
+        min_sec = custom_min * 60 if custom_min > 0 else 0
+        max_sec = custom_max * 60 if custom_max > 0 else None
+    else:
+        min_sec, max_sec = 0, None  # "全部"
 
     if st.button("🔍 搜索", type="primary", use_container_width=True):
         if not search_kw.strip():
             st.error("请输入关键词")
         else:
             # 多搜一些补偿时长过滤
-            fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
-            with st.spinner(f"正在搜索 {search_kw}..."):
-                raw_results = search_videos(search_kw, platform=search_platform.lower(), max_results=fetch_count)
+            needs_filter = (video_type != "全部")
+            fetch_count = search_count * 3 if needs_filter else search_count
+
+            # 短视频模式加 #shorts 标签提高命中率
+            search_query = search_kw
+            if video_type == "短视频 (<1分钟)":
+                search_query = f"#shorts {search_kw}"
+
+            with st.spinner(f"正在搜索 {search_query}..."):
+                raw_results = search_videos(search_query, platform=search_platform.lower(), max_results=fetch_count)
 
             # 时长过滤
-            min_sec = min_minutes * 60 if min_minutes > 0 else 0
-            max_sec = max_minutes * 60 if max_minutes > 0 else None
             filtered = []
             skipped = 0
             for r in raw_results:
