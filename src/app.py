@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls
 from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
-from src.downloader import search_videos
+from src.downloader import search_videos, get_video_info
 
 
 st.set_page_config(page_title="Video Crawler", page_icon="▶", layout="wide", initial_sidebar_state="expanded")
@@ -70,6 +70,37 @@ with st.sidebar:
 
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
+    # X/Twitter URL paste
+    with st.expander("📎 X/Twitter URL 粘贴（不支持关键词搜索）", expanded=False):
+        x_urls = st.text_area(
+            "每行粘贴一个 X/Twitter 视频链接",
+            placeholder="https://x.com/user/status/123456\nhttps://twitter.com/user/status/789012",
+            height=80,
+        )
+        if st.button("🔍 解析链接", use_container_width=True):
+            urls = [u.strip() for u in x_urls.split("\n") if u.strip()]
+            if urls:
+                added = 0
+                with st.spinner(f"解析 {len(urls)} 个链接..."):
+                    for url in urls:
+                        info = get_video_info(url)
+                        if info and info.title:
+                            # Add to search results via session state
+                            # Check dup
+                            existing_ids = {r.id for r in st.session_state.search_results}
+                            if info.id not in existing_ids:
+                                st.session_state.search_results.append(info)
+                                st.session_state.video_map[info.id] = {
+                                    "id": info.id, "title": info.title, "url": info.webpage_url,
+                                    "keyword": "X/Twitter", "platform": info.platform, "duration": info.duration,
+                                }
+                                added += 1
+                if added > 0:
+                    st.success(f"成功解析 {added} 个视频")
+                    st.rerun()
+                else:
+                    st.warning("未能解析任何视频（链接可能需要登录）")
+
     col_d1, col_d2 = st.columns(2)
     with col_d1:
         min_minutes = st.number_input("最短时长（分钟）", min_value=0, value=0, step=1)
@@ -79,10 +110,13 @@ with st.sidebar:
     if st.button("🔍 搜索", type="primary", use_container_width=True):
         if not search_kw.strip():
             st.error("请输入关键词")
+        elif search_platform in ("X", "x"):
+            st.error("X/Twitter 不支持关键词搜索。请粘贴视频链接到下方输入框。")
         else:
             # 多搜一些补偿时长过滤
             fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
-            with st.spinner(f"正在搜索 {search_kw}..."):
+            msg = "正在搜索B站（较慢请耐心等待）..." if search_platform in ("B站", "bilibili") else f"正在搜索 {search_kw}..."
+            with st.spinner(msg):
                 raw_results = search_videos(search_kw, platform=search_platform.lower(), max_results=fetch_count)
 
             # 时长过滤

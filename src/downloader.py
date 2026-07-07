@@ -74,7 +74,13 @@ def download_video(
     Returns dict with keys: id, title, filepath, platform, or None on failure.
     """
     platform = detect_platform(url)
-    fmt = QUALITY_FORMATS.get(quality, QUALITY_FORMATS["720p"])
+
+    # B站用 best 兜底（不兼容 bestvideo/bestaudio 语法）
+    if platform == "bilibili":
+        fmt = "bestvideo+bestaudio/best"
+    else:
+        fmt = QUALITY_FORMATS.get(quality, QUALITY_FORMATS["720p"])
+
     os.makedirs(output_dir, exist_ok=True)
 
     ydl_opts = {
@@ -92,6 +98,10 @@ def download_video(
         "fragment_retries": 3,
         "extractor_retries": 3,
         "socket_timeout": 30,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Referer": "https://www.bilibili.com/" if platform == "bilibili" else "",
+        },
     }
 
     if max_duration:
@@ -142,44 +152,75 @@ def search_videos(
     max_results: int = 20,
 ) -> list[VideoInfo]:
     """
-    Search videos by keyword on a platform.
-
-    Uses yt-dlp built-in search (free, no API key needed).
-    Returns list of VideoInfo.
+    Search videos by keyword on a supported platform.
+    YouTube uses fast flat-extraction. B站 uses full extraction (slower).
+    X/Twitter is NOT supported for keyword search — use URL-based download.
     """
+    platform = platform.lower()
+
+    if platform == "bilibili" or platform == "b站":
+        return _search_bilibili(keyword, max_results)
+    elif platform == "x" or platform == "twitter":
+        # X/Twitter 没有内置搜索，返回空
+        return []
+    else:
+        return _search_youtube(keyword, max_results)
+
+
+def _search_youtube(keyword: str, max_results: int) -> list[VideoInfo]:
+    """Fast YouTube search via yt-dlp flat extraction."""
     search_query = f"ytsearch{max_results}:{keyword}"
-
     ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "ignoreerrors": True,
-        "extract_flat": True,
-        "noplaylist": True,
-        "socket_timeout": 15,
+        "quiet": True, "no_warnings": True, "ignoreerrors": True,
+        "extract_flat": True, "noplaylist": True, "socket_timeout": 15,
     }
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(search_query, download=False)
             if info is None or "entries" not in info:
                 return []
-
-            results = []
-            for entry in info["entries"]:
-                if entry is None:
-                    continue
-                url = entry.get("webpage_url") or entry.get("url", "")
-                results.append(VideoInfo(
-                    id=entry.get("id", ""),
-                    title=entry.get("title", ""),
-                    url=url,
-                    webpage_url=url,
-                    duration=entry.get("duration"),
-                    platform=detect_platform(url),
-                ))
-            return results
+            return _parse_results(info, "youtube")
     except Exception:
         return []
+
+
+def _search_bilibili(keyword: str, max_results: int) -> list[VideoInfo]:
+    """B站搜索：需要完整提取才能拿到标题，速度较慢。"""
+    search_query = f"bilisearch{max_results}:{keyword}"
+    ydl_opts = {
+        "quiet": True, "no_warnings": True, "ignoreerrors": True,
+        "noplaylist": True, "socket_timeout": 20,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Referer": "https://www.bilibili.com/",
+        },
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(search_query, download=False)
+            if info is None or "entries" not in info:
+                return []
+            return _parse_results(info, "bilibili")
+    except Exception:
+        return []
+
+
+def _parse_results(info: dict, platform: str) -> list[VideoInfo]:
+    results = []
+    for entry in info.get("entries", []):
+        if entry is None:
+            continue
+        url = entry.get("webpage_url") or entry.get("url", "")
+        title = entry.get("title") or ""
+        results.append(VideoInfo(
+            id=entry.get("id", ""),
+            title=title,
+            url=url,
+            webpage_url=url,
+            duration=entry.get("duration"),
+            platform=platform,
+        ))
+    return results
 
 
 # ── Get video info without downloading ───────────────────
