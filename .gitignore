@@ -15,6 +15,11 @@ data/tasks.db
 # X/Twitter cookie（敏感文件，勿提交）
 x_cookies.txt
 x_cookies_twikit.json
+x_cookies_netscape.txt
+
+# Playwright 浏览器数据
+data/chrome_x_profile/
+data/playwright_profile/
 
 # 环境变量
 .env

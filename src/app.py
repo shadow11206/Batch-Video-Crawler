@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 from src.db import init_db, create_task, list_tasks, update_task, delete_task, list_task_videos, get_stats, add_video, get_downloaded_urls
 from src.scheduler import start_download_only, pause_task, resume_task, cancel_task
-from src.downloader import search_videos, get_video_info
+from src.downloader import search_videos
 from src.x_search import has_x_cookies
 
 
@@ -72,53 +72,17 @@ with st.sidebar:
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
     # X cookie 状态
-    x_ok = has_x_cookies()
-    if not x_ok:
-        with st.expander("🔑 X/Twitter Cookie 配置（点击展开）", expanded=False):
+    if not has_x_cookies():
+        with st.expander("🔑 X/Twitter Cookie 配置", expanded=False):
             st.markdown("""
-            **1. 获取 Cookie：**
-            - Chrome/Edge 装 EditThisCookie 扩展
-            - 登录 [x.com](https://x.com) → 导出 → 保存为 `x_cookies.txt` 放项目根目录
-
-            **2. X 关键词搜索需要能访问 api.x.com**（当前网络不通，需 VPN）
-
-            **3. X URL 粘贴下载不需要 VPN**——cookie 配好后，粘贴 X 视频链接即可下载
+            **获取 Cookie：**
+            1. Chrome/Edge 装 EditThisCookie 扩展
+            2. 登录 [x.com](https://x.com) → 导出 → 保存为 `x_cookies.txt`
+            3. 放到项目根目录
+            **换电脑：** 重复上述步骤
             """)
     else:
         st.success("X Cookie 已配置")
-        st.caption("💡 X 关键词搜索需 VPN 访问 api.x.com，URL 粘贴下载无需 VPN")
-
-    # X URL 粘贴区
-    if x_ok:
-        with st.expander("📎 粘贴 X/Twitter 链接下载", expanded=False):
-            x_urls = st.text_area(
-                "每行一个链接",
-                placeholder="https://x.com/user/status/123456",
-                height=60,
-                key="x_urls",
-            )
-            if st.button("🔍 解析并下载", use_container_width=True):
-                urls = [u.strip() for u in x_urls.split("\n") if u.strip()]
-                if urls:
-                    added = 0
-                    with st.spinner(f"解析 {len(urls)} 个链接..."):
-                        for url in urls:
-                            info = get_video_info(url)
-                            if info and info.title:
-                                existing_ids = {r.id for r in st.session_state.search_results}
-                                if info.id not in existing_ids:
-                                    st.session_state.search_results.append(info)
-                                    st.session_state.video_map[info.id] = {
-                                        "id": info.id, "title": info.title, "url": info.webpage_url,
-                                        "keyword": "X/Twitter", "platform": info.platform, "duration": info.duration,
-                                    }
-                                    st.session_state.selected_ids.add(info.id)
-                                    added += 1
-                    if added > 0:
-                        st.success(f"已添加 {added} 个视频，可直接下载")
-                        st.rerun()
-                    else:
-                        st.warning("未能解析")
 
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -130,11 +94,9 @@ with st.sidebar:
         if not search_kw.strip():
             st.error("请输入关键词")
         elif search_platform == "X" and not has_x_cookies():
-            st.error("X 搜索暂不可用。请在 X 网页搜索后粘贴链接，或运行 enable_chrome_debug.sh 后重试")
+            st.error("X 搜索需要 Cookie。请按侧边栏说明配置 x_cookies.txt")
         elif search_platform == "X":
-            # 尝试 X 搜索（需要 Chrome 调试端口 + api.x.com 通）
-            st.warning("X 搜索受网络限制，如果长时间无反应请改用 URL 粘贴模式")
-            # 继续走搜索流程（不阻止）
+            pass  # X 搜索可用，继续
         else:
             # 多搜一些补偿时长过滤
             fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count

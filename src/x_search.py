@@ -1,24 +1,18 @@
 """
-X/Twitter 搜索 — 通过 Chrome DevTools Protocol 控制你的原生 Chrome。
+X/Twitter 搜索 — Playwright + 你的浏览器 Cookie + 反检测。
 
-前提: 运行 enable_chrome_debug.sh 开启 Chrome 调试模式（只需一次）。
-之后每次 Chrome 启动都自带调试端口，无需重复操作。
+Cookie 文件: x_cookies.txt (EditThisCookie 导出)
+首次使用后 cookie 可能过期，重新导出即可。
 """
 
 import json
+import os
 import time
-import urllib.request
 from dataclasses import dataclass
-from threading import Lock
 
-try:
-    from websocket import create_connection, WebSocket
-except ImportError:
-    WebSocket = None
 
-DEBUG_PORT = 9222
-CDP_BASE = f"http://localhost:{DEBUG_PORT}"
-_wslock = Lock()
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+COOKIE_FILE = os.path.join(PROJECT_ROOT, "x_cookies.txt")
 
 
 @dataclass
@@ -32,143 +26,108 @@ class XVideoResult:
 
 
 def has_x_cookies() -> bool:
-    """检查 Chrome 调试端口是否可用。"""
-    try:
-        urllib.request.urlopen(f"{CDP_BASE}/json/version", timeout=2)
-        return True
-    except Exception:
-        return False
+    return os.path.exists(COOKIE_FILE)
 
 
 def search_x_videos(keyword: str, max_results: int = 20) -> list[XVideoResult]:
-    """通过 CDP 控制你的原生 Chrome 搜索 X 视频。"""
-    if WebSocket is None:
-        print("[X搜索] 请先安装 websocket-client: pip install websocket-client")
-        return []
-
-    if not has_x_cookies():
-        print("[X搜索] Chrome 调试端口未开启，请运行: bash enable_chrome_debug.sh")
-        return []
-
     try:
-        return _cdp_search(keyword, max_results)
-    except Exception as e:
-        print(f"[X搜索] 搜索异常: {e}")
+        from playwright.sync_api import sync_playwright
+    except ImportError:
         return []
 
+    if not os.path.exists(COOKIE_FILE):
+        return []
 
-def _cdp_search(keyword: str, max_results: int) -> list[XVideoResult]:
-    """核心 CDP 搜索逻辑。"""
+    # 加载 cookie
+    with open(COOKIE_FILE) as f:
+        cookies_raw = json.load(f)
+
+    cookies_pw = [
+        {
+            "name": c["name"], "value": c["value"],
+            "domain": c.get("domain", ".x.com"), "path": c.get("path", "/"),
+            "secure": c.get("secure", False), "httpOnly": c.get("httpOnly", False),
+        }
+        for c in cookies_raw
+    ]
+
     results = []
 
-    # 1. 获取或新建 x.com 页面
-    tab = _find_or_create_tab("x.com")
-    if tab is None:
-        return []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+            ],
+        )
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+            ),
+        )
+        context.add_cookies(cookies_pw)
 
-    ws_url = tab.get("webSocketDebuggerUrl", "")
-    if not ws_url:
-        return []
+        page = context.new_page()
 
-    with _wslock:
-        ws = create_connection(ws_url, timeout=10)
+        # 去掉 webdriver 标记
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
 
-    try:
-        # 2. 导航到搜索页
-        search_url = f"https://x.com/search?q={keyword}&f=video&src=typed_query"
-        _cdp_send(ws, "Page.navigate", {"url": search_url})
-        time.sleep(5)  # 等 JS 渲染
+        try:
+            search_url = f"https://x.com/search?q={keyword}&f=video&src=typed_query"
+            page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
+            time.sleep(5)
 
-        # 3. 滚动收集推文
-        seen_ids = set()
-        scrolls = 0
-        max_scrolls = max_results // 2 + 10
-
-        while len(results) < max_results and scrolls < max_scrolls:
-            # 用 JS 提取页面中的推文
-            script = """
+            # JS 提取推文
+            extract_js = """
             (() => {
                 const tweets = [];
                 document.querySelectorAll('article').forEach(a => {
-                    const links = a.querySelectorAll('a[href*=\"/status/\"]');
+                    const links = a.querySelectorAll('a[href*="/status/"]');
                     if (!links.length) return;
                     const href = links[0].getAttribute('href') || '';
-                    const parts = href.split('/status/')[1]?.split('?')[0]?.split('#')[0]?.split('/')[0];
-                    if (!parts || !/^\\d+$/.test(parts)) return;
-                    tweets.push({id: parts, text: a.innerText?.slice(0, 200) || ''});
+                    const m = href.match(/\\/status\\/(\\d+)/);
+                    if (!m) return;
+                    tweets.push({id: m[1], text: a.innerText.slice(0, 200)});
                 });
                 return JSON.stringify(tweets);
-            })();
+            })()
             """
 
-            resp = _cdp_send(ws, "Runtime.evaluate", {
-                "expression": script,
-                "returnByValue": True,
-            })
+            seen_ids = set()
+            scrolls = 0
 
-            try:
-                raw = resp.get("result", {}).get("result", {}).get("value", "[]")
-                tweets = json.loads(raw) if isinstance(raw, str) else raw
-                for t in tweets:
-                    tid = t.get("id", "")
-                    if tid and tid not in seen_ids:
-                        seen_ids.add(tid)
-                        results.append(XVideoResult(
-                            id=tid,
-                            title=t.get("text", "")[:120].replace("\n", " ") or f"视频 {tid[:8]}",
-                            url=f"https://x.com/i/status/{tid}",
-                            webpage_url=f"https://x.com/i/status/{tid}",
-                            duration=None,
-                            platform="x",
-                        ))
-            except Exception:
-                pass
+            while len(results) < max_results and scrolls < max_results // 2 + 10:
+                raw = page.evaluate(extract_js)
+                try:
+                    tweets = json.loads(raw)
+                    for t in tweets:
+                        tid = t.get("id", "")
+                        if tid and tid not in seen_ids:
+                            seen_ids.add(tid)
+                            results.append(XVideoResult(
+                                id=tid,
+                                title=t.get("text", "")[:120].replace("\n", " ") or f"视频 {tid[:8]}",
+                                url=f"https://x.com/i/status/{tid}",
+                                webpage_url=f"https://x.com/i/status/{tid}",
+                                duration=None,
+                                platform="x",
+                            ))
+                except Exception:
+                    pass
 
-            if len(results) >= max_results:
-                break
+                if len(results) >= max_results:
+                    break
 
-            # 滚动
-            _cdp_send(ws, "Runtime.evaluate", {"expression": "window.scrollBy(0, 600)"})
-            time.sleep(2)
-            scrolls += 1
+                page.evaluate("window.scrollBy(0, 600)")
+                time.sleep(2)
+                scrolls += 1
 
-    finally:
-        ws.close()
+        finally:
+            browser.close()
 
     return results[:max_results]
-
-
-def _find_or_create_tab(url_fragment: str) -> dict | None:
-    """找到一个已打开的包含 url_fragment 的标签，或新建一个。"""
-    try:
-        tabs = json.loads(urllib.request.urlopen(f"{CDP_BASE}/json", timeout=5).read())
-    except Exception:
-        return None
-
-    # 找已有标签
-    for t in tabs:
-        if t.get("type") == "page" and url_fragment in t.get("url", ""):
-            return t
-
-    # 新建标签
-    try:
-        new = json.loads(urllib.request.urlopen(f"{CDP_BASE}/json/new?url=about:blank", timeout=5).read())
-        return new
-    except Exception:
-        # 返回第一个可用的 page
-        pages = [t for t in tabs if t.get("type") == "page"]
-        return pages[0] if pages else None
-
-
-def _cdp_send(ws, method: str, params: dict | None = None) -> dict:
-    """发送 CDP 命令并等待响应。"""
-    msg_id = int(time.time() * 1000) % 100000
-    msg = json.dumps({"id": msg_id, "method": method, "params": params or {}})
-    ws.send(msg)
-
-    # 收响应
-    while True:
-        resp = json.loads(ws.recv())
-        if resp.get("id") == msg_id:
-            return resp
-        # 忽略异步事件
