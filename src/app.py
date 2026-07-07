@@ -95,31 +95,33 @@ with st.sidebar:
             st.error("请输入关键词")
         elif search_platform == "X" and not has_x_cookies():
             st.error("X 搜索需要 Cookie。请按侧边栏说明配置 x_cookies.txt")
-        elif search_platform == "X":
-            pass  # X 搜索可用，继续
         else:
-            # 多搜一些补偿时长过滤
-            fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
+            # 多搜一些补偿时长过滤（X不支持时长过滤，跳过）
+            if search_platform == "X":
+                fetch_count = search_count
+            else:
+                fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
+
             msg = "正在搜索B站（较慢请耐心等待）..." if search_platform in ("B站", "bilibili") else f"正在搜索 {search_kw}..."
             with st.spinner(msg):
                 raw_results = search_videos(search_kw, platform=search_platform.lower(), max_results=fetch_count)
 
-            # 时长过滤
-            min_sec = min_minutes * 60 if min_minutes > 0 else 0
-            max_sec = max_minutes * 60 if max_minutes > 0 else None
-            filtered = []
-            skipped = 0
-            for r in raw_results:
-                dur = r.duration or 0
-                if min_sec > 0 and dur < min_sec:
-                    skipped += 1
-                    continue
-                if max_sec and dur > max_sec:
-                    skipped += 1
-                    continue
-                filtered.append(r)
-                if len(filtered) >= search_count:
-                    break
+            # 时长过滤（X 没有duration数据，跳过）
+            if search_platform == "X":
+                filtered = raw_results[:search_count]
+            else:
+                min_sec = min_minutes * 60 if min_minutes > 0 else 0
+                max_sec = max_minutes * 60 if max_minutes > 0 else None
+                filtered = []
+                for r in raw_results:
+                    dur = r.duration or 0
+                    if min_sec > 0 and dur < min_sec:
+                        continue
+                    if max_sec and dur > max_sec:
+                        continue
+                    filtered.append(r)
+                    if len(filtered) >= search_count:
+                        break
 
             results = filtered
 
