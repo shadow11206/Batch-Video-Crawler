@@ -68,14 +68,41 @@ with st.sidebar:
     with col_s2:
         search_mode = st.selectbox("模式", ["新搜索", "追加搜索"], help="新搜索=替换结果, 追加=合并到现有结果并去重")
 
-    search_count = st.slider("搜索数量", 5, 200, 30)
+    search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
+
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        min_minutes = st.number_input("最短时长（分钟）", min_value=0, value=0, step=1)
+    with col_d2:
+        max_minutes = st.number_input("最长时长（分钟）", min_value=0, value=0, step=1, help="0=不限")
 
     if st.button("🔍 搜索", type="primary", use_container_width=True):
         if not search_kw.strip():
             st.error("请输入关键词")
         else:
+            # 多搜一些补偿时长过滤
+            fetch_count = search_count * 3 if (min_minutes > 0 or max_minutes > 0) else search_count
             with st.spinner(f"正在搜索 {search_kw}..."):
-                results = search_videos(search_kw, platform=search_platform.lower(), max_results=search_count)
+                raw_results = search_videos(search_kw, platform=search_platform.lower(), max_results=fetch_count)
+
+            # 时长过滤
+            min_sec = min_minutes * 60 if min_minutes > 0 else 0
+            max_sec = max_minutes * 60 if max_minutes > 0 else None
+            filtered = []
+            skipped = 0
+            for r in raw_results:
+                dur = r.duration or 0
+                if min_sec > 0 and dur < min_sec:
+                    skipped += 1
+                    continue
+                if max_sec and dur > max_sec:
+                    skipped += 1
+                    continue
+                filtered.append(r)
+                if len(filtered) >= search_count:
+                    break
+
+            results = filtered
 
             if search_mode == "新搜索" or not st.session_state.search_results:
                 st.session_state.search_results = results
