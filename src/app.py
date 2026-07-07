@@ -62,19 +62,11 @@ with st.sidebar:
     st.markdown("#### 1. 搜索视频")
     search_kw = st.text_input("关键词", placeholder="输入关键词后点击搜索")
 
-    col_s1, col_s2, col_s3 = st.columns([2, 2, 1])
+    col_s1, col_s2 = st.columns(2)
     with col_s1:
         search_platform = st.selectbox("平台", ["YouTube", "X", "B站"])
     with col_s2:
         search_mode = st.selectbox("模式", ["新搜索", "追加搜索"], help="新搜索=替换结果, 追加=合并到现有结果并去重")
-    with col_s3:
-        st.write("")  # spacer
-        if st.button("🗑 清空", help="清空搜索结果", use_container_width=True):
-            st.session_state.search_results = []
-            st.session_state.search_keyword = ""
-            st.session_state.selected_ids = set()
-            st.session_state.video_map = {}
-            st.rerun()
 
     search_count = st.slider("目标数量", 5, 200, 30, help="最终要显示的视频数")
 
@@ -184,10 +176,12 @@ with tab1:
         st.info("在侧边栏输入关键词并点击「搜索」")
     else:
         sel_ids = st.session_state.selected_ids
-        st.caption(f"搜索 **{st.session_state.search_keyword}** · 共 {len(results)} 个 · 已选 {len(sel_ids)} 个")
+        downloaded_urls = get_downloaded_urls()
+        already_count = sum(1 for r in results if r.webpage_url in downloaded_urls)
+        st.caption(f"搜索 **{st.session_state.search_keyword}** · 共 {len(results)} 个 · 已选 {len(sel_ids)} 个 · 已下载 {already_count} 个")
 
-        # 全选 / 取消全选
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 3])
+        # 批量操作按钮
+        c1, c2, c3, c4, c5, c6 = st.columns([1, 1, 1, 1, 1, 1])
         with c1:
             if st.button("☑ 全选", use_container_width=True):
                 st.session_state.selected_ids = {r.id for r in results}
@@ -201,13 +195,21 @@ with tab1:
                 all_ids = {r.id for r in results}
                 st.session_state.selected_ids = all_ids - st.session_state.selected_ids
                 st.rerun()
+        with c4:
+            if st.button("🆕 未下载", use_container_width=True, help="仅选中未下载过的视频"):
+                st.session_state.selected_ids = {
+                    r.id for r in results if r.webpage_url not in downloaded_urls
+                }
+                st.rerun()
+        with c6:
+            if st.button("🗑 清空", use_container_width=True, help="清空搜索结果"):
+                st.session_state.search_results = []
+                st.session_state.search_keyword = ""
+                st.session_state.selected_ids = set()
+                st.session_state.video_map = {}
+                st.rerun()
 
         # ── Video table ──
-        downloaded_urls = get_downloaded_urls()
-        already_count = sum(1 for r in results if r.webpage_url in downloaded_urls)
-        if already_count > 0:
-            st.caption(f"📥 其中 {already_count} 个已下载过（标记 ⬇️）")
-
         for r in results:
             is_sel = r.id in sel_ids
             is_downloaded = r.webpage_url in downloaded_urls
