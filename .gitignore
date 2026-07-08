@@ -31,3 +31,5 @@ data/playwright_profile/
 # macOS
 .DS_Store
 x_cookies_netscape.txt
+data/tasks.db*
+data/trace_test/

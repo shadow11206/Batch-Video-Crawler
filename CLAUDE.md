@@ -48,6 +48,37 @@ Batch Video Crawler/
 - X/Twitter：搜索用 Playwright + EditThisCookie 导出 cookie（x_cookies.txt）。下载用 yt-dlp + Netscape cookie。格式只能用 best，不能设自定义 http_headers（空Referer会403）
 - B站：搜索下载都需要自定义 User-Agent 和 Referer header。格式用 best，需完整提取才能拿标题
 
+## 踩坑红线（每次改代码前必读，违反必出bug）
+
+### X/Twitter 平台
+- X 下载**禁止设 `http_headers`**（空 Referer 会导致 CDN 返回 403）。只有 B站需要自定义 headers
+- X 下载**只能用 `best` 格式**，`bestvideo[height<=720]+bestaudio` 不兼容 X 的 m3u8 格式
+- X 搜索返回的 URL 必须是 `https://x.com/{username}/status/{id}`，**禁止 `/i/status/` 格式**
+- X 关键词搜索**不存在** yt-dlp extractor，必须用 Playwright + cookie 方案
+
+### B站 平台
+- B站搜索**必须设** `extract_flat: False`（完整提取才能拿标题） + 自定义 User-Agent/Referer headers
+- B站下载**必须设**自定义 headers（否则 HTTP 412），**只能用 `best` 格式**
+
+### 通用下载
+- `download_video` 返回值是 dict（含 `filepath` 或 `error`），不是 None。检查成功用 `"filepath" in result`
+- yt-dlp `match_filter_func` 过滤视频后仍返回 info dict，**必须检查文件是否存在**来判断是否真的下载成功
+- SQLite 操作中，INSERT 和之后的 SELECT **必须用同一连接**，否则新连接看不到未提交的事务
+
+### Streamlit 开发
+- 页面验证**必须打开浏览器确认无红色错误框**，不能只靠 `curl` 判断
+- 侧边栏 `st.button` 的 if/elif/else 链中，**不要让某个条件只写 pass 跳过实际逻辑**
+- widget key 不能和 `st.session_state` 变量同名，否则 `st.rerun()` 后报 APIException
+- 有活跃任务时页面自动 10 秒刷新，避免用户看到过期状态
+
+### 时长过滤
+- 时长过滤必须在**搜索/收集阶段**做（`_collect_videos`），多搜 3 倍补偿
+- 下载阶段仍有时长过滤作为兜底，但文件不存在 ≠ 下载失败（可能只是被过滤）
+
+### 测试与提交
+- **禁止把测试视频文件提交到 git**，测试完后立即删除
+- **禁止提交 cookie 文件或数据库文件**
+
 ## 开发流程
 - 并行任务使用 git worktree 隔离开发，每个独立任务一个 worktree
 - 开发完成后合并回主分支，清理 worktree
